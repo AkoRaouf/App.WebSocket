@@ -1,21 +1,28 @@
 ﻿using Serilog;
+using Serilog.Events;
 using System;
+using System.IO;
 using System.Net.WebSockets;
+using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace App.Client
 {
     class Program
     {
+        private static readonly ManualResetEvent ExitEvent = new ManualResetEvent(false);
         static void Main(string[] args)
         {
+            InitLogging();
+            Thread.Sleep(2000);
             var factory = new Func<ClientWebSocket>(() =>
             {
                 var client = new ClientWebSocket
                 {
                     Options =
                     {
-                        KeepAliveInterval = TimeSpan.FromSeconds(5),
+                        KeepAliveInterval = TimeSpan.FromSeconds(5000),
                         // Proxy = ...
                         // ClientCertificates = ...
                     }
@@ -24,13 +31,13 @@ namespace App.Client
                 return client;
             });
 
-            var url = new Uri("wss://localhost:5000");
+            var url = new Uri("ws://localhost:80/ws");
 
             using (IWebsocketClient client = new WebsocketClient(url, factory))
             {
                 client.Name = "Bitmex";
-                client.ReconnectTimeout = TimeSpan.FromSeconds(30);
-                client.ErrorReconnectTimeout = TimeSpan.FromSeconds(30);
+                client.ReconnectTimeout = TimeSpan.FromSeconds(1);
+                client.ErrorReconnectTimeout = TimeSpan.FromSeconds(1);
                 client.ReconnectionHappened.Subscribe(type =>
                 {
                     Log.Information($"Reconnection happened, type: {type}, url: {client.Url}");
@@ -50,7 +57,7 @@ namespace App.Client
                 Task.Run(() => StartSendingPing(client));
                 //Task.Run(() => SwitchUrl(client));
 
-                //ExitEvent.WaitOne();
+                ExitEvent.WaitOne();
             }
         }
         
@@ -65,6 +72,18 @@ namespace App.Client
 
                 client.Send("ping");
             }
+        }
+
+        private static void InitLogging()
+        {
+            var executingDir = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);
+            var logPath = Path.Combine(executingDir, "logs", "verbose.log");
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Verbose()
+                .WriteTo.File(logPath, rollingInterval: RollingInterval.Day)
+                .WriteTo.ColoredConsole(LogEventLevel.Verbose,
+                    outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] {Message} {NewLine}{Exception}")
+                .CreateLogger();
         }
     }
 }
