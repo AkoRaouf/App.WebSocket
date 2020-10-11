@@ -1,21 +1,24 @@
 ﻿using Serilog;
 using Serilog.Events;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.WebSockets;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace App.Client
 {
-    class Program
+    public class Client
     {
         private static readonly ManualResetEvent ExitEvent = new ManualResetEvent(false);
-        static void Main(string[] args)
+        private static readonly IWebsocketClient client;
+        public Client()
         {
             InitLogging();
-            Thread.Sleep(2000);
+            WaitUntilServerStarts();
             var factory = new Func<ClientWebSocket>(() =>
             {
                 var client = new ClientWebSocket
@@ -31,18 +34,16 @@ namespace App.Client
                 return client;
             });
 
-            var url = new Uri("ws://localhost:80/ws");
+            var serverUrl = new Uri("ws://localhost:80/ws");
 
-            using (IWebsocketClient client = new WebsocketClient(url, factory))
+            using (IWebsocketClient webSocketClient = new WebsocketClient(serverUrl, factory))
             {
-                client.Name = "Bitmex";
-                //client.ReconnectTimeout = TimeSpan.FromSeconds(1);
-                //client.ErrorReconnectTimeout = TimeSpan.FromSeconds(1);
-                client.ReconnectionHappened.Subscribe(type =>
+                webSocketClient.Name = "Bitmex";
+                webSocketClient.ReconnectionHappened.Subscribe(type =>
                 {
-                    Log.Information($"Reconnection happened, type: {type}, url: {client.Url}");
+                    Log.Information($"Reconnection happened, type: {type}, url: {webSocketClient.Url}");
                 });
-                client.DisconnectionHappened.Subscribe(info =>
+                webSocketClient.DisconnectionHappened.Subscribe(info =>
                     Log.Warning($"Disconnection happened, type: {info.Type}"));
 
                 //client.MessageReceived.Subscribe(msg =>
@@ -51,13 +52,13 @@ namespace App.Client
                 //});
 
                 Log.Information("Starting...");
-                client.Start().Wait();
+                webSocketClient.Start().Wait();
                 Log.Information("Started.");
 
                 //Task.Run(() => StartSendingPing(client));
                 //Task.Run(() => StartSendingPing1(client));
                 //Task.Run(() => SwitchUrl(client));
-               var res = SendAsync(client).Result;
+                var res = SendAsync(webSocketClient).Result;
 
                 Log.Information($"Message received: {res}");
 
@@ -65,11 +66,16 @@ namespace App.Client
             }
         }
 
-        private static async Task<string> SendAsync(IWebsocketClient client)
+        private static void WaitUntilServerStarts()
+        {
+            Thread.Sleep(2000);
+        }
+
+        private async Task<string> SendAsync(IWebsocketClient client)
         {
             await Task.Delay(1000);
 
-            return await Task.Run(() => 
+            return await Task.Run(() =>
             {
                 string result = string.Empty;
                 client.Send("ping");
@@ -79,32 +85,6 @@ namespace App.Client
                 });
                 return result;
             });
-        }
-
-        private static async Task StartSendingPing(IWebsocketClient client)
-        {
-            while (true)
-            {
-                await Task.Delay(1000);
-
-                if (!client.IsRunning)
-                    continue;
-
-                client.Send("ping");
-            }
-        }
-
-        private static async Task StartSendingPing1(IWebsocketClient client)
-        {
-            while (true)
-            {
-                await Task.Delay(1000);
-
-                if (!client.IsRunning)
-                    continue;
-
-                client.Send("ping1");
-            }
         }
 
         private static void InitLogging()

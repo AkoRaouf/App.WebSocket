@@ -12,7 +12,10 @@ namespace App.Common
             BinaryData = binary;
             TextData = text;
             MessageType = messageType;
+            Identifier = Guid.NewGuid();
         }
+
+        public Guid Identifier { get; private set; }
 
         /// <summary>
         /// Received text message (only if type = WebSocketMessageType.Text)
@@ -56,6 +59,11 @@ namespace App.Common
         public static ResponseMessage New(byte[] data)
         {
             return new ResponseMessage(data, null, WebSocketMessageType.Binary);
+        }
+
+        public void PairIdentifier(Guid guid)
+        {
+            Identifier = guid;
         }
     }
 }

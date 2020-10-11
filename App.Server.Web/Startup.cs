@@ -79,6 +79,8 @@ namespace App.Server.Web
             {
                 case "ping":
                     return SendResponse(webSocket, ResponseMessage.New("pong"));
+                case "ping1":
+                    return SendResponse(webSocket, ResponseMessage.New("pong1"));
                 case string _ when msg.StartsWith("echo_fast"):
                     return SendEcho(webSocket, request.TextData, false);
                 case string _ when msg.StartsWith("echo"):
