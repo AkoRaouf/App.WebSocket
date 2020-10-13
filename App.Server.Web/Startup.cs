@@ -79,14 +79,10 @@ namespace App.Server.Web
             {
                 case "ping":
                     return SendResponse(webSocket, ResponseMessage.New("pong"));
-                case "ping1":
-                    return SendResponse(webSocket, ResponseMessage.New("pong1"));
-                case string _ when msg.StartsWith("echo_fast"):
-                    return SendEcho(webSocket, request.TextData, false);
-                case string _ when msg.StartsWith("echo"):
-                    return SendEcho(webSocket, request.TextData, true);
-                case "close-me":
-                    return webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "normal closure", CancellationToken.None);
+                case "Hello":
+                    return SendResponse(webSocket, ResponseMessage.New("Hi"));
+                case "Bye":
+                    return webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Bye", CancellationToken.None);
             }
 
             throw new NotSupportedException($"Request: '{msg}' is not supported");

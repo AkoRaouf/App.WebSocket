@@ -11,10 +11,11 @@ using System.Threading.Tasks;
 
 namespace App.Client
 {
-    public class Client
+    public class Client : IDisposable
     {
         private static readonly ManualResetEvent ExitEvent = new ManualResetEvent(false);
-        private static readonly IWebsocketClient client;
+        private readonly Uri serverUrl = new Uri("ws://localhost:80/ws");
+        private readonly IWebsocketClient webSocketClient;
         public Client()
         {
             InitLogging();
@@ -33,37 +34,21 @@ namespace App.Client
                 //client.Options.SetRequestHeader("Origin", "xxx");
                 return client;
             });
-
-            var serverUrl = new Uri("ws://localhost:80/ws");
-
-            using (IWebsocketClient webSocketClient = new WebsocketClient(serverUrl, factory))
+            webSocketClient = new WebsocketClient(serverUrl, factory)
             {
-                webSocketClient.Name = "Bitmex";
-                webSocketClient.ReconnectionHappened.Subscribe(type =>
-                {
-                    Log.Information($"Reconnection happened, type: {type}, url: {webSocketClient.Url}");
-                });
-                webSocketClient.DisconnectionHappened.Subscribe(info =>
-                    Log.Warning($"Disconnection happened, type: {info.Type}"));
+                Name = "First Client"
+            };
+            webSocketClient.DisconnectionHappened.Subscribe(info =>
+                Log.Warning($"Disconnection happened, type: {info.Type}"));
 
-                //client.MessageReceived.Subscribe(msg =>
-                //{
-                //    Log.Information($"Message received: {msg}");
-                //});
+            Log.Information("Starting...");
+            webSocketClient.Start().Wait();
+            Log.Information("Started.");
+            //var res = SendAsync("ping").Result;
 
-                Log.Information("Starting...");
-                webSocketClient.Start().Wait();
-                Log.Information("Started.");
+            //Log.Information($"Message received: {res}");
 
-                //Task.Run(() => StartSendingPing(client));
-                //Task.Run(() => StartSendingPing1(client));
-                //Task.Run(() => SwitchUrl(client));
-                var res = SendAsync(webSocketClient).Result;
-
-                Log.Information($"Message received: {res}");
-
-                ExitEvent.WaitOne();
-            }
+            //ExitEvent.WaitOne();
         }
 
         private static void WaitUntilServerStarts()
@@ -71,15 +56,15 @@ namespace App.Client
             Thread.Sleep(2000);
         }
 
-        private async Task<string> SendAsync(IWebsocketClient client)
+        public async Task<string> SendAsync(string message)
         {
             await Task.Delay(1000);
 
             return await Task.Run(() =>
             {
                 string result = string.Empty;
-                client.Send("ping");
-                client.MessageReceived.Subscribe(msg =>
+                webSocketClient.Send(message);
+                webSocketClient.MessageReceived.Subscribe(msg =>
                 {
                     result = msg.TextData;
                 });
@@ -97,6 +82,11 @@ namespace App.Client
                 .WriteTo.ColoredConsole(LogEventLevel.Verbose,
                     outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] {Message} {NewLine}{Exception}")
                 .CreateLogger();
+        }
+
+        public void Dispose()
+        {
+            webSocketClient.Dispose();
         }
     }
 }

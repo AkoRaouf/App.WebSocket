@@ -14,109 +14,28 @@ namespace App.Client
         private static readonly ManualResetEvent ExitEvent = new ManualResetEvent(false);
         static void Main(string[] args)
         {
-            InitLogging();
-            Thread.Sleep(2000);
-            var factory = new Func<ClientWebSocket>(() =>
+            var clientConsumer = new ClientConsumer();
+            clientConsumer.Do();
+            ExitEvent.WaitOne();
+        }
+
+    }
+
+    public class ClientConsumer
+    {
+        public async void Do()
+        {
+            var client = new Client();
+            await Task.Run(async () =>
             {
-                var client = new ClientWebSocket
+                while (true)
                 {
-                    Options =
-                    {
-                        KeepAliveInterval = TimeSpan.FromSeconds(5000),
-                        // Proxy = ...
-                        // ClientCertificates = ...
-                    }
-                };
-                //client.Options.SetRequestHeader("Origin", "xxx");
-                return client;
+                    Console.Write("Please Enter the valid command:");
+                    var arg = Console.ReadLine();
+                    var response = await client.SendAsync(arg);
+                    Log.Information($"The response is {response}");
+                }
             });
-
-            var url = new Uri("ws://localhost:80/ws");
-
-            using (IWebsocketClient client = new WebsocketClient(url, factory))
-            {
-                client.Name = "Bitmex";
-                //client.ReconnectTimeout = TimeSpan.FromSeconds(1);
-                //client.ErrorReconnectTimeout = TimeSpan.FromSeconds(1);
-                client.ReconnectionHappened.Subscribe(type =>
-                {
-                    Log.Information($"Reconnection happened, type: {type}, url: {client.Url}");
-                });
-                client.DisconnectionHappened.Subscribe(info =>
-                    Log.Warning($"Disconnection happened, type: {info.Type}"));
-
-                //client.MessageReceived.Subscribe(msg =>
-                //{
-                //    Log.Information($"Message received: {msg}");
-                //});
-
-                Log.Information("Starting...");
-                client.Start().Wait();
-                Log.Information("Started.");
-
-                //Task.Run(() => StartSendingPing(client));
-                //Task.Run(() => StartSendingPing1(client));
-                //Task.Run(() => SwitchUrl(client));
-               var res = SendAsync(client).Result;
-
-                Log.Information($"Message received: {res}");
-
-                ExitEvent.WaitOne();
-            }
-        }
-
-        private static async Task<string> SendAsync(IWebsocketClient client)
-        {
-            await Task.Delay(1000);
-
-            return await Task.Run(() => 
-            {
-                string result = string.Empty;
-                client.Send("ping");
-                client.MessageReceived.Subscribe(msg =>
-                {
-                    result = msg.TextData;
-                });
-                return result;
-            });
-        }
-
-        private static async Task StartSendingPing(IWebsocketClient client)
-        {
-            while (true)
-            {
-                await Task.Delay(1000);
-
-                if (!client.IsRunning)
-                    continue;
-
-                client.Send("ping");
-            }
-        }
-
-        private static async Task StartSendingPing1(IWebsocketClient client)
-        {
-            while (true)
-            {
-                await Task.Delay(1000);
-
-                if (!client.IsRunning)
-                    continue;
-
-                client.Send("ping1");
-            }
-        }
-
-        private static void InitLogging()
-        {
-            var executingDir = Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);
-            var logPath = Path.Combine(executingDir, "logs", "verbose.log");
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Verbose()
-                .WriteTo.File(logPath, rollingInterval: RollingInterval.Day)
-                .WriteTo.ColoredConsole(LogEventLevel.Verbose,
-                    outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] {Message} {NewLine}{Exception}")
-                .CreateLogger();
         }
     }
 }
